@@ -28,7 +28,7 @@ export default function Profile({ profile, onSave, isFirstRun = false }) {
         <div className="mb-6">
           <p className="section-eyebrow">{isFirstRun ? "Hoş geldin" : "Profil"}</p>
           <h1 className="page-title">{isFirstRun ? "Okuma yolculuğunu hazırlayalım" : "Profil ayarları"}</h1>
-          <p className="page-subtitle">Bu bilgiler sadece bu tarayıcıda saklanır ve istediğin zaman değiştirilebilir.</p>
+          <p className="page-subtitle">Profilin bu cihazda korunur; tamamladığın okumalar öğretmenin takip edebilmesi için güvenli biçimde eşitlenir.</p>
         </div>
 
         <div className="card space-y-5">
