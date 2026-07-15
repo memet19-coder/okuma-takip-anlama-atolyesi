@@ -27,12 +27,45 @@ export default function App() {
 
   useEffect(() => {
     if (!state.studentProfile?.name?.trim()) return undefined;
-    const timeout = window.setTimeout(() => {
-      syncStudentProgress(state).catch((error) => {
+    let cancelled = false;
+
+    async function syncNow() {
+      try {
+        const result = await syncStudentProgress(state);
+        const correction = result.correction;
+        if (!correction || cancelled) return;
+        setState((current) => {
+          if ((current.cloudRevision || 0) >= correction.teacher_revision) return current;
+          const readingHistory = Array.isArray(correction.reading_history) ? correction.reading_history : [];
+          const comprehensionHistory = Array.isArray(correction.comprehension_history) ? correction.comprehension_history : [];
+          return {
+            ...current,
+            cloudRevision: correction.teacher_revision,
+            studentProfile: {
+              ...current.studentProfile,
+              name: correction.student_name,
+              grade: correction.grade
+            },
+            readingHistory,
+            comprehensionHistory,
+            points: readingHistory.reduce((sum, item) => sum + calculateReadingPoints(item), 0) + comprehensionHistory.length * 30,
+            badges: calculateBadges({ ...current, badges: [] }, readingHistory)
+          };
+        });
+      } catch (error) {
         console.warn("Öğrenci ilerlemesi buluta aktarılamadı.", error.message);
-      });
-    }, 700);
-    return () => window.clearTimeout(timeout);
+      }
+    }
+
+    const timeout = window.setTimeout(syncNow, 700);
+    const interval = window.setInterval(syncNow, 30000);
+    window.addEventListener("focus", syncNow);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncNow);
+    };
   }, [state]);
 
   function patchState(updater) {

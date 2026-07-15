@@ -39,11 +39,21 @@ export async function syncStudentProgress(state) {
   if (!supabase || !state.studentProfile?.name?.trim()) return { configured: false };
 
   const { deviceId, syncToken } = getDeviceCredentials();
-  const history = state.readingHistory || [];
-  const comprehension = state.comprehensionHistory || [];
-  const { error } = await supabase.rpc("sync_student_progress", {
+  const { data: correction, error: correctionError } = await supabase.rpc("get_student_correction", {
     p_device_id: deviceId,
     p_sync_token: syncToken,
+    p_known_revision: Number(state.cloudRevision) || 0
+  });
+
+  if (correctionError) throw correctionError;
+  if (correction) return { configured: true, correction };
+
+  const history = state.readingHistory || [];
+  const comprehension = state.comprehensionHistory || [];
+  const { error } = await supabase.rpc("sync_student_progress_v2", {
+    p_device_id: deviceId,
+    p_sync_token: syncToken,
+    p_teacher_revision: Number(state.cloudRevision) || 0,
     p_student_name: state.studentProfile.name.trim(),
     p_grade: Number(state.studentProfile.grade) || null,
     p_reading_history: history,
@@ -64,4 +74,17 @@ export async function loadTeacherReadingReport(pin) {
   const { data, error } = await supabase.rpc("teacher_reading_report", { access_pin: pin });
   if (error) throw error;
   return data || [];
+}
+
+export async function updateTeacherStudent(pin, student) {
+  if (!supabase) throw new Error("SUPABASE_NOT_CONFIGURED");
+  const { data, error } = await supabase.rpc("teacher_update_student", {
+    access_pin: pin,
+    target_student_id: student.id,
+    new_name: student.name.trim(),
+    new_grade: Number(student.grade),
+    new_reading_history: student.readingHistory || []
+  });
+  if (error) throw error;
+  return data;
 }

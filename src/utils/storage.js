@@ -8,6 +8,7 @@ export const initialState = {
   badges: [],
   favorites: [],
   readLater: [],
+  cloudRevision: 0,
   theme: "light"
 };
 

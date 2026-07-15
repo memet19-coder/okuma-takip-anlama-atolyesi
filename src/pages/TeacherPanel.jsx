@@ -1,15 +1,33 @@
 import { useMemo, useState } from "react";
-import { BookOpen, ChevronRight, Clock3, CloudOff, KeyRound, RefreshCw, Users } from "lucide-react";
-import { isSupabaseConfigured, loadTeacherReadingReport } from "../utils/supabase.js";
+import {
+  BookOpen,
+  ChevronRight,
+  Clock3,
+  CloudOff,
+  Download,
+  KeyRound,
+  Pencil,
+  RefreshCw,
+  Save,
+  Trash2,
+  Users,
+  X
+} from "lucide-react";
+import { isSupabaseConfigured, loadTeacherReadingReport, updateTeacherStudent } from "../utils/supabase.js";
 
 export default function TeacherPanel({ state }) {
   const currentStudent = buildCurrentStudent(state);
   const [pin, setPin] = useState("");
   const [cloudStudents, setCloudStudents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [correctionMode, setCorrectionMode] = useState("edit");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
+  const [correctionError, setCorrectionError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const rows = isSupabaseConfigured ? cloudStudents : currentStudent ? [currentStudent] : [];
   const selectedStudent = rows.find((student) => student.id === selectedId) || rows[0];
@@ -24,6 +42,7 @@ export default function TeacherPanel({ state }) {
     }
     setLoading(true);
     setError("");
+    setNotice("");
     try {
       const report = await loadTeacherReadingReport(pin.trim());
       const students = report.map(normalizeCloudStudent);
@@ -44,12 +63,91 @@ export default function TeacherPanel({ state }) {
     }
   }
 
+  function downloadBackup() {
+    if (!rows.length) return;
+    const exportedAt = new Date();
+    const backup = {
+      schemaVersion: 1,
+      application: "Okuma Takip ve Anlama Atölyesi",
+      exportedAt: exportedAt.toISOString(),
+      summary: {
+        studentCount: rows.length,
+        totalRead,
+        totalMinutes,
+        totalComprehension
+      },
+      students: rows
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `okuma-yedegi-${exportedAt.toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice(`${rows.length} öğrencinin kayıtları yedeklendi.`);
+  }
+
+  function openCorrection(mode = "edit") {
+    if (!selectedStudent || !isSupabaseConfigured || !loaded) return;
+    setCorrectionError("");
+    setCorrectionMode(mode);
+    setEditingStudent({
+      id: selectedStudent.id,
+      name: selectedStudent.name,
+      grade: selectedStudent.grade,
+      readingHistory: selectedStudent.readingHistory.map((reading) => ({ ...reading }))
+    });
+  }
+
+  async function saveCorrection() {
+    if (!editingStudent?.name.trim()) {
+      setCorrectionError("Öğrenci adı boş bırakılamaz.");
+      return;
+    }
+    setSaving(true);
+    setCorrectionError("");
+    try {
+      await updateTeacherStudent(pin.trim(), editingStudent);
+      setEditingStudent(null);
+      await refreshReport();
+      setNotice("Öğrenci kaydı düzeltildi. Değişiklik öğrencinin cihazına da iletilecek.");
+    } catch (requestError) {
+      const message = requestError.message || "";
+      if (message.includes("TEACHER_PIN_INVALID")) {
+        setCorrectionError("Öğretmen PIN'i yanlış.");
+      } else {
+        setCorrectionError("Düzeltme kaydedilemedi. Lütfen yeniden dene.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <main className="page-shell">
-      <div className="mb-6">
-        <p className="section-eyebrow">Öğretmen Paneli</p>
-        <h1 className="page-title">Sınıf okuma raporu</h1>
-        <p className="page-subtitle">Öğrencilerin tamamladığı metinleri, okuma sürelerini ve haftalık çalışmalarını buradan takip edebilirsin.</p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="section-eyebrow">Öğretmen Paneli</p>
+          <h1 className="page-title">Sınıf okuma raporu</h1>
+          <p className="page-subtitle">Öğrencilerin tamamladığı metinleri, okuma sürelerini ve haftalık çalışmalarını buradan takip edebilirsin.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="secondary-button" disabled={!rows.length || (isSupabaseConfigured && !loaded)} onClick={downloadBackup}>
+            <Download size={18} />
+            Yedekle
+          </button>
+          <button className="secondary-button" disabled={!selectedStudent || !isSupabaseConfigured || !loaded} onClick={() => openCorrection("edit")}>
+            <Pencil size={18} />
+            Düzenle
+          </button>
+          <button className="secondary-button" disabled={!selectedStudent || !isSupabaseConfigured || !loaded} onClick={() => openCorrection("delete")}>
+            <Trash2 size={18} />
+            Sil
+          </button>
+        </div>
       </div>
 
       {isSupabaseConfigured ? (
@@ -77,6 +175,7 @@ export default function TeacherPanel({ state }) {
             </button>
           </div>
           {error && <p className="mt-3 text-sm font-bold text-red-700 dark:text-red-300">{error}</p>}
+          {notice && <p className="mt-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">{notice}</p>}
         </section>
       ) : (
         <section className="mb-6 flex items-start gap-4 border-y border-amber-200 bg-amber-50/70 py-5 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
@@ -136,7 +235,94 @@ export default function TeacherPanel({ state }) {
           {selectedStudent && <StudentReadingDetails student={selectedStudent} />}
         </>
       )}
+
+      {editingStudent && (
+        <CorrectionDialog
+          student={editingStudent}
+          mode={correctionMode}
+          saving={saving}
+          error={correctionError}
+          onChange={setEditingStudent}
+          onClose={() => setEditingStudent(null)}
+          onSave={saveCorrection}
+        />
+      )}
     </main>
+  );
+}
+
+function CorrectionDialog({ student, mode, saving, error, onChange, onClose, onSave }) {
+  const indexedReadings = student.readingHistory.map((reading, index) => ({ reading, index })).reverse();
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4" role="presentation" onMouseDown={onClose}>
+      <section
+        className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-slate-900"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="correction-dialog-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
+          <div>
+            <p className="section-eyebrow">{mode === "delete" ? "Kayıt Sil" : "Kayıt Düzenle"}</p>
+            <h2 id="correction-dialog-title" className="mt-1 text-xl font-black text-slate-950 dark:text-white">Öğrenci ve okuma kayıtları</h2>
+          </div>
+          <button className="icon-button" aria-label="Pencereyi kapat" onClick={onClose}><X size={19} /></button>
+        </div>
+
+        <div className="max-h-[calc(90vh-154px)] overflow-y-auto p-5">
+          <div className="grid gap-4 sm:grid-cols-[1fr_160px]">
+            <label className="field-label">
+              Öğrenci adı
+              <input className="input" value={student.name} maxLength={80} onChange={(event) => onChange({ ...student, name: event.target.value })} />
+            </label>
+            <label className="field-label">
+              Sınıf
+              <select className="input" value={student.grade} onChange={(event) => onChange({ ...student, grade: Number(event.target.value) })}>
+                {[5, 6, 7, 8].map((grade) => <option key={grade} value={grade}>{grade}. sınıf</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <h3 className="font-black text-slate-950 dark:text-white">Okuma geçmişi</h3>
+            <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">{student.readingHistory.length} kayıt</span>
+          </div>
+          {indexedReadings.length === 0 ? (
+            <p className="mt-3 border-y border-slate-200 py-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Okuma kaydı kalmadı.</p>
+          ) : (
+            <div className="mt-3 divide-y divide-slate-200 border-y border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+              {indexedReadings.map(({ reading, index }) => (
+                <div key={`${reading.textId}-${reading.date}-${index}`} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-slate-950 dark:text-white">{reading.title || "Başlıksız metin"}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{formatDate(reading.date)} · {reading.wordCount || 0} kelime · {reading.readingMinutes || 0} dk</p>
+                  </div>
+                  <button
+                    className="icon-button shrink-0 text-red-700 dark:text-red-300"
+                    aria-label={`${reading.title || "Okuma"} kaydını sil`}
+                    title="Yanlış kaydı sil"
+                    onClick={() => onChange({ ...student, readingHistory: student.readingHistory.filter((_, readingIndex) => readingIndex !== index) })}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">Silinen okuma kayıtları kaydetme işleminden sonra geri alınamaz. Önce “Yedek Al” düğmesiyle bir kopya oluşturabilirsin.</p>
+          {error && <p className="mt-3 text-sm font-bold text-red-700 dark:text-red-300">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-4 dark:border-slate-800">
+          <button className="secondary-button" disabled={saving} onClick={onClose}>Vazgeç</button>
+          <button className="primary-button" disabled={saving || !student.name.trim()} onClick={onSave}>
+            <Save size={18} />
+            {saving ? "Kaydediliyor" : "Düzeltmeyi Kaydet"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -183,6 +369,7 @@ function normalizeCloudStudent(row) {
     lastText: row.last_text || "Henüz yok",
     activeDays: row.active_days || 0,
     readingHistory: Array.isArray(row.reading_history) ? row.reading_history : [],
+    comprehensionHistory: Array.isArray(row.comprehension_history) ? row.comprehension_history : [],
     updatedAt: row.updated_at
   };
 }
@@ -202,6 +389,7 @@ function buildCurrentStudent(state) {
     lastText: history.at(-1)?.title || "Henüz yok",
     activeDays: new Set(history.map((item) => item.date)).size,
     readingHistory: history,
+    comprehensionHistory: state.comprehensionHistory || [],
     updatedAt: new Date().toISOString(),
     isCurrent: true
   };
