@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ogr-001",
+    "name": "Ayşe Yılmaz",
+    "grade": 6,
+    "readCount": 42,
+    "wordCount": 12840,
+    "readingMinutes": 196,
+    "lastText": "Perili Köşk",
+    "activeDays": 18
+  },
+  {
+    "id": "ogr-002",
+    "name": "Mehmet Demir",
+    "grade": 7,
+    "readCount": 31,
+    "wordCount": 10420,
+    "readingMinutes": 164,
+    "lastText": "Göle Maya Çalmak",
+    "activeDays": 14
+  },
+  {
+    "id": "ogr-003",
+    "name": "Elif Kaya",
+    "grade": 5,
+    "readCount": 58,
+    "wordCount": 16730,
+    "readingMinutes": 243,
+    "lastText": "Kıymetli Tuz",
+    "activeDays": 24
+  },
+  {
+    "id": "ogr-004",
+    "name": "Kerem Arslan",
+    "grade": 8,
+    "readCount": 26,
+    "wordCount": 9360,
+    "readingMinutes": 151,
+    "lastText": "Pembe İncili Kaftan",
+    "activeDays": 12
+  }
+]

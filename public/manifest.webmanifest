@@ -1,0 +1,10 @@
+{
+  "name": "Okuma Takip ve Anlama Atolyesi",
+  "short_name": "Okuma Atolyesi",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "description": "Günlük okuma, soru çözme ve ilerleme takibi uygulaması.",
+  "icons": []
+}
