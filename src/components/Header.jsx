@@ -1,16 +1,16 @@
-import { BookOpen, GraduationCap, Moon, Sun } from "lucide-react";
+import { GraduationCap, Moon, Sun } from "lucide-react";
 
 export default function Header({ profile, view, setView, theme, toggleTheme }) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <button className="flex items-center gap-3 text-left" onClick={() => setView("home")}>
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white">
-            <BookOpen size={24} aria-hidden="true" />
+          <span className="grid h-11 w-11 place-items-center overflow-hidden rounded-xl bg-white">
+            <img src="/MG-logo.png" alt="MG" className="h-full w-full object-contain" />
           </span>
           <span>
             <span className="block text-base font-bold leading-tight text-slate-950 dark:text-white">
-              Okuma Atolyesi
+              Okuma Atölyesi
             </span>
             <span className="hidden text-sm text-slate-500 sm:block">Takip ve Anlama</span>
           </span>

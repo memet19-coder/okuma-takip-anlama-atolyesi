@@ -1,6 +1,6 @@
 {
-  "name": "Okuma Takip ve Anlama Atolyesi",
-  "short_name": "Okuma Atolyesi",
+  "name": "Okuma Takip ve Anlama Atölyesi",
+  "short_name": "Okuma Atölyesi",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f8fafc",
