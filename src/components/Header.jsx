@@ -6,7 +6,7 @@ export default function Header({ profile, view, setView, theme, toggleTheme }) {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <button className="flex items-center gap-3 text-left" onClick={() => setView("home")}>
           <span className="grid h-11 w-11 place-items-center overflow-hidden rounded-xl bg-white">
-            <img src="/MG-logo.png" alt="MG" className="h-full w-full object-contain" />
+            <img src={`${import.meta.env.BASE_URL}MG-logo.png`} alt="MG" className="h-full w-full object-contain" />
           </span>
           <span>
             <span className="block text-base font-bold leading-tight text-slate-950 dark:text-white">
