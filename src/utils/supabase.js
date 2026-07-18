@@ -88,3 +88,13 @@ export async function updateTeacherStudent(pin, student) {
   if (error) throw error;
   return data;
 }
+
+export async function deleteTeacherStudent(pin, studentId) {
+  if (!supabase) throw new Error("SUPABASE_NOT_CONFIGURED");
+  const { data, error } = await supabase.rpc("teacher_delete_student", {
+    access_pin: pin,
+    target_student_id: studentId
+  });
+  if (error) throw error;
+  return data;
+}

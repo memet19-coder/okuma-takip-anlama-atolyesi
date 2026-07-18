@@ -13,7 +13,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { isSupabaseConfigured, loadTeacherReadingReport, updateTeacherStudent } from "../utils/supabase.js";
+import { deleteTeacherStudent, isSupabaseConfigured, loadTeacherReadingReport, updateTeacherStudent } from "../utils/supabase.js";
 
 export default function TeacherPanel({ state }) {
   const currentStudent = buildCurrentStudent(state);
@@ -21,7 +21,7 @@ export default function TeacherPanel({ state }) {
   const [cloudStudents, setCloudStudents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
-  const [correctionMode, setCorrectionMode] = useState("edit");
+  const [studentToDelete, setStudentToDelete] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -90,16 +90,39 @@ export default function TeacherPanel({ state }) {
     setNotice(`${rows.length} öğrencinin kayıtları yedeklendi.`);
   }
 
-  function openCorrection(mode = "edit") {
+  function openCorrection() {
     if (!selectedStudent || !isSupabaseConfigured || !loaded) return;
     setCorrectionError("");
-    setCorrectionMode(mode);
     setEditingStudent({
       id: selectedStudent.id,
       name: selectedStudent.name,
       grade: selectedStudent.grade,
       readingHistory: selectedStudent.readingHistory.map((reading) => ({ ...reading }))
     });
+  }
+
+  async function confirmStudentDelete() {
+    if (!studentToDelete) return;
+    setSaving(true);
+    setCorrectionError("");
+    try {
+      await deleteTeacherStudent(pin.trim(), studentToDelete.id);
+      const deletedName = studentToDelete.name;
+      setStudentToDelete(null);
+      await refreshReport();
+      setNotice(`${deletedName} adlı öğrenci sistemden silindi.`);
+    } catch (requestError) {
+      const message = requestError.message || "";
+      if (message.includes("TEACHER_PIN_INVALID")) {
+        setCorrectionError("Öğretmen PIN'i yanlış.");
+      } else if (message.includes("STUDENT_NOT_FOUND")) {
+        setCorrectionError("Öğrenci kaydı bulunamadı. Kayıtları yenileyip tekrar dene.");
+      } else {
+        setCorrectionError("Öğrenci silinemedi. Lütfen yeniden dene.");
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveCorrection() {
@@ -139,11 +162,18 @@ export default function TeacherPanel({ state }) {
             <Download size={18} />
             Yedekle
           </button>
-          <button className="secondary-button" disabled={!selectedStudent || !isSupabaseConfigured || !loaded} onClick={() => openCorrection("edit")}>
+          <button className="secondary-button" disabled={!selectedStudent || !isSupabaseConfigured || !loaded} onClick={openCorrection}>
             <Pencil size={18} />
             Düzenle
           </button>
-          <button className="secondary-button" disabled={!selectedStudent || !isSupabaseConfigured || !loaded} onClick={() => openCorrection("delete")}>
+          <button
+            className="secondary-button text-red-700 dark:text-red-300"
+            disabled={!selectedStudent || !isSupabaseConfigured || !loaded}
+            onClick={() => {
+              setCorrectionError("");
+              setStudentToDelete(selectedStudent);
+            }}
+          >
             <Trash2 size={18} />
             Sil
           </button>
@@ -205,8 +235,8 @@ export default function TeacherPanel({ state }) {
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
                 <thead className="bg-slate-100/70 dark:bg-slate-900">
                   <tr>
-                    {["Öğrenci", "Sınıf", "Okuduğu metin", "Anlama çalışması", "Toplam kelime", "Okuma süresi", "Son metin", ""].map((head) => (
-                      <th key={head || "detail"} className="px-4 py-3 text-left text-sm font-bold text-slate-600 dark:text-slate-300">{head}</th>
+                    {["Öğrenci", "Sınıf", "Okuduğu metin", "Anlama çalışması", "Toplam kelime", "Okuma süresi", "Son metin", "İşlemler"].map((head) => (
+                      <th key={head} className="px-4 py-3 text-left text-sm font-bold text-slate-600 dark:text-slate-300">{head}</th>
                     ))}
                   </tr>
                 </thead>
@@ -221,9 +251,23 @@ export default function TeacherPanel({ state }) {
                       <td className="px-4 py-4">{student.readingMinutes} dk</td>
                       <td className="max-w-64 px-4 py-4">{student.lastText}</td>
                       <td className="px-4 py-4">
-                        <button className="icon-button" aria-label={`${student.name} okuma ayrıntıları`} title="Okuma ayrıntıları" onClick={() => setSelectedId(student.id)}>
-                          <ChevronRight size={19} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button className="icon-button" aria-label={`${student.name} okuma ayrıntıları`} title="Okuma ayrıntıları" onClick={() => setSelectedId(student.id)}>
+                            <ChevronRight size={19} />
+                          </button>
+                          <button
+                            className="icon-button text-red-700 hover:border-red-200 hover:bg-red-50 dark:text-red-300 dark:hover:border-red-900 dark:hover:bg-red-950"
+                            aria-label={`${student.name} adlı öğrenciyi sil`}
+                            title="Öğrenciyi sil"
+                            onClick={() => {
+                              setSelectedId(student.id);
+                              setCorrectionError("");
+                              setStudentToDelete(student);
+                            }}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -239,7 +283,6 @@ export default function TeacherPanel({ state }) {
       {editingStudent && (
         <CorrectionDialog
           student={editingStudent}
-          mode={correctionMode}
           saving={saving}
           error={correctionError}
           onChange={setEditingStudent}
@@ -247,11 +290,23 @@ export default function TeacherPanel({ state }) {
           onSave={saveCorrection}
         />
       )}
+
+      {studentToDelete && (
+        <StudentDeleteDialog
+          student={studentToDelete}
+          saving={saving}
+          error={correctionError}
+          onClose={() => {
+            if (!saving) setStudentToDelete(null);
+          }}
+          onConfirm={confirmStudentDelete}
+        />
+      )}
     </main>
   );
 }
 
-function CorrectionDialog({ student, mode, saving, error, onChange, onClose, onSave }) {
+function CorrectionDialog({ student, saving, error, onChange, onClose, onSave }) {
   const indexedReadings = student.readingHistory.map((reading, index) => ({ reading, index })).reverse();
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4" role="presentation" onMouseDown={onClose}>
@@ -264,7 +319,7 @@ function CorrectionDialog({ student, mode, saving, error, onChange, onClose, onS
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
           <div>
-            <p className="section-eyebrow">{mode === "delete" ? "Kayıt Sil" : "Kayıt Düzenle"}</p>
+            <p className="section-eyebrow">Kayıt Düzenle</p>
             <h2 id="correction-dialog-title" className="mt-1 text-xl font-black text-slate-950 dark:text-white">Öğrenci ve okuma kayıtları</h2>
           </div>
           <button className="icon-button" aria-label="Pencereyi kapat" onClick={onClose}><X size={19} /></button>
@@ -319,6 +374,41 @@ function CorrectionDialog({ student, mode, saving, error, onChange, onClose, onS
           <button className="primary-button" disabled={saving || !student.name.trim()} onClick={onSave}>
             <Save size={18} />
             {saving ? "Kaydediliyor" : "Düzeltmeyi Kaydet"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StudentDeleteDialog({ student, saving, error, onClose, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4" role="presentation" onMouseDown={onClose}>
+      <section
+        className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl dark:bg-slate-900"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="student-delete-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+          <Trash2 size={22} />
+        </div>
+        <h2 id="student-delete-title" className="mt-4 text-xl font-black text-slate-950 dark:text-white">Öğrenci silinsin mi?</h2>
+        <p className="mt-3 leading-7 text-slate-600 dark:text-slate-300">
+          <strong className="text-slate-950 dark:text-white">{student.name}</strong> ve bu öğrenciye ait tüm okuma kayıtları öğretmen raporundan kalıcı olarak silinecek.
+        </p>
+        <p className="mt-3 text-sm font-semibold text-red-700 dark:text-red-300">Bu işlem geri alınamaz. Gerekliyse önce yedek al.</p>
+        {error && <p className="mt-3 text-sm font-bold text-red-700 dark:text-red-300">{error}</p>}
+        <div className="mt-6 flex justify-end gap-3">
+          <button className="secondary-button" disabled={saving} onClick={onClose}>Vazgeç</button>
+          <button
+            className="primary-button bg-red-600 hover:bg-red-700"
+            disabled={saving}
+            onClick={onConfirm}
+          >
+            <Trash2 size={18} />
+            {saving ? "Siliniyor" : "Öğrenciyi Sil"}
           </button>
         </div>
       </section>
